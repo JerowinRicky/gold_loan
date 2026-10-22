@@ -1,0 +1,19 @@
+{
+  "name": "Sri Lakshmi Gold Finance & Loans",
+  "short_name": "Gold Loans",
+  "description": "Secure Local Gold Loan & Pledge Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff4f1",
+  "theme_color": "#3D2314",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/gold-coin.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum LoanStatus {
+  ACTIVE
+  OVERDUE
+  CLOSED
+  CANCELLED
+  DEFAULTED
+}
+
+enum GoldItemStatus {
+  PLEDGED
+  RELEASED
+  AUCTIONED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  INTEREST_ONLY
+  PRINCIPAL_PARTIAL
+  FULL_SETTLEMENT
+  PROCESSING_FEE
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NET_BANKING
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
+enum ScheduleStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentPurpose {
+  NEW_LOAN
+  GOLD_PLEDGE
+  PAYMENT
+  GOLD_RELEASE
+  DOCUMENT_SUBMISSION
+  OTHER
+}
+
+enum NotificationType {
+  PAYMENT_REMINDER
+  PAYMENT_SUCCESS
+  APPOINTMENT
+  LOAN_UPDATE
+  GENERAL
+}
+
+model User {
+  id                  String             @id @default(uuid())
+  customerId          String?            @unique @map("customer_id")
+  name                String
+  email               String             @unique
+  phone               String             @unique
+  passwordHash        String             @map("password_hash")
+  role                Role               @default(CUSTOMER)
+  status              UserStatus         @default(ACTIVE)
+  mustChangePassword  Boolean            @default(false) @map("must_change_password")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  deletedAt           DateTime?          @map("deleted_at")
+
+  profile             CustomerProfile?
+  loans               Loan[]
+  payments            Payment[]
+  appointments        Appointment[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+
+  @@index([role, status])
+  @@index([phone])
+  @@index([customerId])
+  @@map("users")
+}
+
+model CustomerProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  dateOfBirth String?  @map("date_of_birth")
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  idType      String?  @map("id_type")
+  idNumber    String?  @map("id_number")
+  idDocument  String?  @map("id_document")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_profiles")
+}
+
+model Loan {
+  id              String            @id @default(uuid())
+  loanNumber      String            @unique @map("loan_number")
+  customerId      String            @map("customer_id")
+  loanAmount      Decimal           @map("loan_amount") @db.Decimal(12, 2)
+  interestRate    Decimal           @map("interest_rate") @db.Decimal(5, 2) // Monthly rate in %
+  interestType    String            @default("MONTHLY_SIMPLE") @map("interest_type")
+  durationMonths  Int               @map("duration_months")
+  startDate       DateTime          @map("start_date")
+  maturityDate    DateTime          @map("maturity_date")
+  processingFee   Decimal           @default(0) @map("processing_fee") @db.Decimal(10, 2)
+  status          LoanStatus        @default(ACTIVE)
+  notes           String?
+  goldReleased    Boolean           @default(false) @map("gold_released")
+  releasedAt      DateTime?         @map("released_at")
+  releasedBy      String?           @map("released_by")
+  releaseNotes    String?           @map("release_notes")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  customer        User              @relation(fields: [customerId], references: [id])
+  goldItems       GoldItem[]
+  paymentSchedules PaymentSchedule[]
+  payments        Payment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([loanNumber])
+  @@map("loans")
+}
+
+model GoldItem {
+  id             String         @id @default(uuid())
+  loanId         String         @map("loan_id")
+  itemType       String         @map("item_type")
+  description    String
+  grossWeight    Decimal        @map("gross_weight") @db.Decimal(8, 3)
+  netWeight      Decimal        @map("net_weight") @db.Decimal(8, 3)
+  purity         String         // e.g. "22K (916)", "24K"
+  estimatedValue Decimal        @map("estimated_value") @db.Decimal(12, 2)
+  loanValue      Decimal        @map("loan_value") @db.Decimal(12, 2)
+  status         GoldItemStatus @default(PLEDGED)
+  notes          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  loan           Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  images         GoldImage[]
+
+  @@index([loanId])
+  @@map("gold_items")
+}
+
+model GoldImage {
+  id         String   @id @default(uuid())
+  goldItemId String   @map("gold_item_id")
+  fileUrl    String   @map("file_url")
+  fileName   String   @map("file_name")
+  imageType  String   @default("FRONT") @map("image_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  goldItem   GoldItem @relation(fields: [goldItemId], references: [id], onDelete: Cascade)
+
+  @@index([goldItemId])
+  @@map("gold_images")
+}
+
+model PaymentSchedule {
+  id              String         @id @default(uuid())
+  loanId          String         @map("loan_id")
+  dueDate         DateTime       @map("due_date")
+  principalAmount Decimal        @default(0) @map("principal_amount") @db.Decimal(12, 2)
+  interestAmount  Decimal        @map("interest_amount") @db.Decimal(12, 2)
+  totalDue        Decimal        @map("total_due") @db.Decimal(12, 2)
+  paidAmount      Decimal        @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  status          ScheduleStatus @default(PENDING)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  loan            Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("payment_schedules")
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  receiptNumber     String        @unique @map("receipt_number")
+  loanId            String        @map("loan_id")
+  customerId        String        @map("customer_id")
+  amount            Decimal       @db.Decimal(12, 2)
+  principalComponent Decimal      @default(0) @map("principal_component") @db.Decimal(12, 2)
+  interestComponent  Decimal      @default(0) @map("interest_component") @db.Decimal(12, 2)
+  paymentType       PaymentType   @default(INTEREST_ONLY) @map("payment_type")
+  paymentMethod     PaymentMethod @default(UPI) @map("payment_method")
+  gatewayOrderId    String?       @map("gateway_order_id")
+  gatewayPaymentId  String?       @map("gateway_payment_id")
+  referenceNumber   String?       @map("reference_number")
+  screenshotUrl     String?       @map("screenshot_url")
+  collectionSlot    String?       @map("collection_slot")
+  collectionAddress String?       @map("collection_address")
+  rejectionReason   String?       @map("rejection_reason")
+  status            PaymentStatus @default(PENDING)
+  notes             String?
+  receivedBy        String?       @map("received_by")
+  paidAt            DateTime?     @map("paid_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  loan              Loan          @relation(fields: [loanId], references: [id])
+  customer          User          @relation(fields: [customerId], references: [id])
+
+  @@index([loanId])
+  @@index([customerId])
+  @@index([receiptNumber])
+  @@index([status])
+  @@map("payments")
+}
+
+model AvailabilitySlot {
+  id          String        @id @default(uuid())
+  date        String        // Format: YYYY-MM-DD
+  startTime   String        @map("start_time") // Format: "10:00"
+  endTime     String        @map("end_time")   // Format: "10:30"
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  appointment Appointment?
+
+  @@unique([date, startTime])
+  @@index([date])
+  @@map("availability_slots")
+}
+
+model Appointment {
+  id                String             @id @default(uuid())
+  appointmentNumber String             @unique @map("appointment_number")
+  customerId        String             @map("customer_id")
+  slotId            String             @unique @map("slot_id")
+  date              String
+  timeSlot          String             @map("time_slot")
+  purpose           AppointmentPurpose @default(NEW_LOAN)
+  status            AppointmentStatus  @default(PENDING)
+  notes             String?
+  adminNotes        String?            @map("admin_notes")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  customer          User               @relation(fields: [customerId], references: [id])
+  slot              AvailabilitySlot   @relation(fields: [slotId], references: [id])
+
+  @@index([customerId])
+  @@index([date])
+  @@index([status])
+  @@map("appointments")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  title     String
+  message   String
+  type      NotificationType @default(GENERAL)
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  userName   String?  @map("user_name")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValue   String?  @map("old_value")
+  newValue   String?  @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id                    Int      @id @default(1)
+  shopName              String   @default("Sri Lakshmi Gold Finance & Loans") @map("shop_name")
+  shopAddress           String   @default("Shop #4, Market Main Road, Commercial Complex, Bengaluru, Karnataka 560001") @map("shop_address")
+  shopPhone             String   @default("+91 98450 12345") @map("shop_phone")
+  shopEmail             String   @default("contact@lakshmigoldloans.in") @map("shop_email")
+  defaultInterestRate   Decimal  @default(2.00) @map("default_interest_rate") @db.Decimal(5, 2)
+  defaultDurationMonths Int      @default(6) @map("default_duration_months")
+  processingFeePercent  Decimal  @default(1.00) @map("processing_fee_percent") @db.Decimal(5, 2)
+  slotDurationMinutes   Int      @default(30) @map("slot_duration_minutes")
+  workingDays           String   @default("Mon,Tue,Wed,Thu,Fri,Sat") @map("working_days")
+  openingTime           String   @default("09:30") @map("opening_time")
+  closingTime           String   @default("18:30") @map("closing_time")
+  upiEnabled            Boolean  @default(true) @map("upi_enabled")
+  upiId                 String   @default("srilakshmi@upi") @map("upi_id")
+  upiPhone              String   @default("9845012345") @map("upi_phone")
+  upiName               String   @default("Sri Lakshmi Gold Finance") @map("upi_name")
+  cashCollectionEnabled Boolean  @default(true) @map("cash_collection_enabled")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+

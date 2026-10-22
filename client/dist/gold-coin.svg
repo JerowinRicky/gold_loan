@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <radialGradient id="goldGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFE885" />
+      <stop offset="45%" stop-color="#E5A93C" />
+      <stop offset="100%" stop-color="#9C6B16" />
+    </radialGradient>
+    <linearGradient id="ferrariRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3D2314" />
+      <stop offset="100%" stop-color="#1D0E07" />
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="46" fill="url(#ferrariRing)" />
+  <circle cx="50" cy="50" r="41" fill="url(#goldGrad)" stroke="#664406" stroke-width="2" />
+  <circle cx="50" cy="50" r="34" fill="none" stroke="#D18F26" stroke-width="1.5" stroke-dasharray="3,2" />
+  <path d="M50 25 L58 40 L75 42 L62 54 L66 71 L50 62 L34 71 L38 54 L25 42 L42 40 Z" fill="#664406" opacity="0.15" />
+  <text x="50" y="58" font-family="'Plus Jakarta Sans', sans-serif" font-size="24" font-weight="800" fill="#472E04" text-anchor="middle">₹</text>
+  <text x="50" y="78" font-family="'Plus Jakarta Sans', sans-serif" font-size="7" font-weight="700" fill="#3D2314" text-anchor="middle" letter-spacing="1">GOLD LOAN</text>
+</svg>
+
